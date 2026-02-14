@@ -1,0 +1,17 @@
+cpogx:
+  browser:
+    name: "Chrome"
+    version: "latest"
+    platform-name: "win11"
+  lambdatest:
+    grid-url: "https://hub.lambdatest.com/wd/hub"
+    username: ""
+    access-key: ""
+    project: "lambda-karate-lt"
+    build: "lambda-karate-lt"
+    tags: "smoke,lambda"
+    tunnel:
+      name: ""
+
+karate:
+  tags: "@smoke"
