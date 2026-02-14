@@ -11,6 +11,7 @@ Includes:
   - CDP command execution via `POST /goog/cdp/execute`
 - smoke feature with visible assertions for intercept + upload
 - plain JUnit runner and `@SpringBootTest` runner
+- Spring `LambdaDriverTarget` bean bound from `application.yml`
 
 ## 1) Minimal Setup
 
@@ -55,6 +56,16 @@ Run:
 ```powershell
 ./gradlew test --tests "io.cpogx.lambdatest.LambdaSpringBootSmokeTest"
 ```
+
+The Spring bean is `io.cpogx.lambdatest.spring.LambdaDriverTarget`.
+It reads:
+- grid URL
+- username / access key
+- tunnel name
+- browser name / version / platform
+- tags / build / project
+
+from `cpogx.*` properties and converts them to Karate properties used by the runtime.
 
 ## 3) Run a specific tag
 

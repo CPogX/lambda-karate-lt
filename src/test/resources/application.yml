@@ -1,17 +1,21 @@
 cpogx:
+  execution:
+    driver-type: "chromedriver"
   browser:
     name: "Chrome"
     version: "latest"
     platform-name: "win11"
   lambdatest:
     grid-url: "https://hub.lambdatest.com/wd/hub"
-    username: ""
-    access-key: ""
+    username: "${LT_USERNAME:}"
+    access-key: "${LT_ACCESS_KEY:}"
     project: "lambda-karate-lt"
     build: "lambda-karate-lt"
     tags: "smoke,lambda"
+    user-files: ""
     tunnel:
-      name: ""
+      enabled: false
+      name: "${LT_TUNNEL_NAME:}"
 
 karate:
   tags: "@smoke"
