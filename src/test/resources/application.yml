@@ -1,6 +1,7 @@
 cpogx:
   execution:
     driver-type: "chromedriver"
+    timeout-ms: 30000
   browser:
     name: "Chrome"
     version: "latest"
@@ -11,8 +12,14 @@ cpogx:
     access-key: "${LT_ACCESS_KEY:}"
     project: "lambda-karate-lt"
     build: "lambda-karate-lt"
+    name-prefix: ""
     tags: "smoke,lambda"
     user-files: ""
+    accept-insecure-certs: false
+    network: true
+    console: true
+    visual: true
+    web-socket-url: true
     tunnel:
       enabled: false
       name: "${LT_TUNNEL_NAME:}"

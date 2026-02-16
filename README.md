@@ -4,6 +4,7 @@ Lean LambdaTest-only Karate project.
 
 Includes:
 - prebuilt LambdaTest runtime config (`classpath:lambdatest/runtime.js`)
+- Karate `Target` implementation (`LambdaDriverTarget`) for remote WebDriver sessions
 - prebuilt remote WebDriver helper (`LambdaWebDriverInterop`) for:
   - `lt:intercept:response`, `lt:intercept:redirect`, `lt:intercept:error`
   - remote file upload via `/se/file`
@@ -57,7 +58,8 @@ Run:
 ./gradlew test --tests "io.cpogx.lambdatest.LambdaSpringBootSmokeTest"
 ```
 
-The Spring bean is `io.cpogx.lambdatest.spring.LambdaDriverTarget`.
+The Spring bean is `io.cpogx.lambdatest.spring.LambdaDriverTarget` and it implements Karate's
+`com.intuit.karate.driver.Target` interface (`start(ScenarioRuntime)` / `stop(ScenarioRuntime)`).
 It reads:
 - grid URL
 - username / access key
@@ -65,7 +67,17 @@ It reads:
 - browser name / version / platform
 - tags / build / project
 
-from `cpogx.*` properties and converts them to Karate properties used by the runtime.
+from `cpogx.*` properties and is used by the feature via `configure driverTarget`.
+
+Feature wiring:
+
+```karate
+* def LambdaDriverTarget = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTarget')
+* def LambdaDriverTargetRegistry = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTargetRegistry')
+* def driverTarget = LambdaDriverTargetRegistry.get()
+* if (!driverTarget) driverTarget = LambdaDriverTarget.fromKarateProperties(karate.properties)
+* configure driverTarget = driverTarget
+```
 
 ## 3) Run a specific tag
 

@@ -6,8 +6,12 @@ Background:
   * if (!runtime.gridUrl) karate.fail('missing karate.grid.url')
   * if (!runtime.username || !runtime.accessKey) karate.fail('set lt.username and lt.accessKey (or LT_USERNAME / LT_ACCESS_KEY)')
   * def Interop = Java.type('io.cpogx.lambdatest.interop.LambdaWebDriverInterop')
+  * def LambdaDriverTarget = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTarget')
+  * def LambdaDriverTargetRegistry = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTargetRegistry')
   * def FileUtil = Java.type('io.cpogx.lambdatest.support.FileUtil')
-  * configure driver = runtime.buildDriver({ capabilities: { 'LT:Options': { network: true, console: true, visual: true } } })
+  * def driverTarget = LambdaDriverTargetRegistry.get()
+  * if (!driverTarget) driverTarget = LambdaDriverTarget.fromKarateProperties(karate.properties)
+  * configure driverTarget = driverTarget
   * configure afterScenario = runtime.createAfterScenario()
 
 @smoke @intercept

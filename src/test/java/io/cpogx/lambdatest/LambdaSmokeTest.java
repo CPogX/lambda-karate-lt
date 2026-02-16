@@ -2,6 +2,8 @@ package io.cpogx.lambdatest;
 
 import com.intuit.karate.Results;
 import com.intuit.karate.Runner;
+import io.cpogx.lambdatest.spring.LambdaDriverTarget;
+import io.cpogx.lambdatest.spring.LambdaDriverTargetRegistry;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -14,23 +16,27 @@ class LambdaSmokeTest {
     @Test
     void runSmoke() {
         Map<String, String> props = defaultKarateProperties();
-        Assumptions.assumeTrue(!props.getOrDefault("lt.username", "").isBlank()
-                        && !props.getOrDefault("lt.accessKey", "").isBlank(),
+        LambdaDriverTarget target = LambdaDriverTarget.fromKarateProperties(props);
+        Assumptions.assumeTrue(target.hasCredentials(),
                 "Skipping Lambda smoke test because lt.username / lt.accessKey are not set.");
+        runSmokeWithTarget(target, props, readTagExpression());
+    }
 
+    void runSmokeWithTarget(LambdaDriverTarget target, Map<String, String> props, String tagExpression) {
         Runner.Builder builder = Runner.path("classpath:features/lambdatest-smoke.feature")
                 .reportDir("build/karate-reports/lambdatest-smoke")
                 .outputCucumberJson(true);
-
-        String tags = readTagExpression();
-        if (!tags.isBlank()) {
-            builder.tags(tags);
+        if (tagExpression != null && !tagExpression.isBlank()) {
+            builder.tags(tagExpression);
         }
-
         props.forEach(builder::systemProperty);
-
-        Results results = builder.parallel(1);
-        Assertions.assertEquals(0, results.getFailCount(), results.getErrorMessages());
+        LambdaDriverTargetRegistry.set(target);
+        try {
+            Results results = builder.parallel(1);
+            Assertions.assertEquals(0, results.getFailCount(), results.getErrorMessages());
+        } finally {
+            LambdaDriverTargetRegistry.clear();
+        }
     }
 
     static Map<String, String> defaultKarateProperties() {

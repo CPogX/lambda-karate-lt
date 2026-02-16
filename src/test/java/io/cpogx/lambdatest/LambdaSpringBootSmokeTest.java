@@ -26,11 +26,6 @@ class LambdaSpringBootSmokeTest {
                 "Skipping Lambda Spring smoke test because credentials are not configured.");
 
         String tags = environment.getProperty("karate.tags", LambdaSmokeTest.readTagExpression());
-        if (tags != null) {
-            System.setProperty("karate.tags", tags);
-        }
-        props.forEach(System::setProperty);
-
-        new LambdaSmokeTest().runSmoke();
+        new LambdaSmokeTest().runSmokeWithTarget(driverTarget, props, tags == null ? "" : tags);
     }
 }

@@ -27,22 +27,30 @@ public class LambdaTargetProperties {
                 : (!isBlank(lambdatest.tunnel.name) ? lambdatest.tunnel.name : "");
         return new LambdaDriverTarget(
                 execution.driverType,
+                execution.timeoutMs,
                 lambdatest.gridUrl,
                 browser.name,
                 browser.version,
                 browser.platformName,
+                lambdatest.namePrefix,
                 lambdatest.username,
                 lambdatest.accessKey,
                 lambdatest.project,
                 lambdatest.build,
                 lambdatest.tags,
                 tunnelName,
-                lambdatest.userFiles
+                lambdatest.userFiles,
+                lambdatest.acceptInsecureCerts,
+                lambdatest.network,
+                lambdatest.console,
+                lambdatest.visual,
+                lambdatest.webSocketUrl
         );
     }
 
     public static class Execution {
         private String driverType = "chromedriver";
+        private int timeoutMs = 30000;
 
         public String getDriverType() {
             return driverType;
@@ -50,6 +58,14 @@ public class LambdaTargetProperties {
 
         public void setDriverType(String driverType) {
             this.driverType = driverType;
+        }
+
+        public int getTimeoutMs() {
+            return timeoutMs;
+        }
+
+        public void setTimeoutMs(int timeoutMs) {
+            this.timeoutMs = timeoutMs;
         }
     }
 
@@ -90,7 +106,13 @@ public class LambdaTargetProperties {
         private String project = "lambda-karate-lt";
         private String build = "lambda-karate-lt";
         private String tags = "smoke,lambda";
+        private String namePrefix = "";
         private String userFiles = "";
+        private boolean acceptInsecureCerts = false;
+        private boolean network = true;
+        private boolean console = true;
+        private boolean visual = true;
+        private boolean webSocketUrl = true;
         private final Tunnel tunnel = new Tunnel();
 
         public String getGridUrl() {
@@ -141,12 +163,60 @@ public class LambdaTargetProperties {
             this.tags = tags;
         }
 
+        public String getNamePrefix() {
+            return namePrefix;
+        }
+
+        public void setNamePrefix(String namePrefix) {
+            this.namePrefix = namePrefix;
+        }
+
         public String getUserFiles() {
             return userFiles;
         }
 
         public void setUserFiles(String userFiles) {
             this.userFiles = userFiles;
+        }
+
+        public boolean isAcceptInsecureCerts() {
+            return acceptInsecureCerts;
+        }
+
+        public void setAcceptInsecureCerts(boolean acceptInsecureCerts) {
+            this.acceptInsecureCerts = acceptInsecureCerts;
+        }
+
+        public boolean isNetwork() {
+            return network;
+        }
+
+        public void setNetwork(boolean network) {
+            this.network = network;
+        }
+
+        public boolean isConsole() {
+            return console;
+        }
+
+        public void setConsole(boolean console) {
+            this.console = console;
+        }
+
+        public boolean isVisual() {
+            return visual;
+        }
+
+        public void setVisual(boolean visual) {
+            this.visual = visual;
+        }
+
+        public boolean isWebSocketUrl() {
+            return webSocketUrl;
+        }
+
+        public void setWebSocketUrl(boolean webSocketUrl) {
+            this.webSocketUrl = webSocketUrl;
         }
 
         public Tunnel getTunnel() {
