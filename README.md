@@ -73,8 +73,8 @@ Feature wiring:
 
 ```karate
 * def LambdaDriverTarget = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTarget')
-* def LambdaDriverTargetRegistry = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTargetRegistry')
-* def driverTarget = LambdaDriverTargetRegistry.get()
+* def LambdaDriverTargetContext = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTargetContext')
+* def driverTarget = LambdaDriverTargetContext.getInstance()
 * if (!driverTarget) driverTarget = LambdaDriverTarget.fromKarateProperties(karate.properties)
 * configure driverTarget = driverTarget
 ```

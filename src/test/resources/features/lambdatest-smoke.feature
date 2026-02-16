@@ -7,9 +7,9 @@ Background:
   * if (!runtime.username || !runtime.accessKey) karate.fail('set lt.username and lt.accessKey (or LT_USERNAME / LT_ACCESS_KEY)')
   * def Interop = Java.type('io.cpogx.lambdatest.interop.LambdaWebDriverInterop')
   * def LambdaDriverTarget = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTarget')
-  * def LambdaDriverTargetRegistry = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTargetRegistry')
+  * def LambdaDriverTargetContext = Java.type('io.cpogx.lambdatest.spring.LambdaDriverTargetContext')
   * def FileUtil = Java.type('io.cpogx.lambdatest.support.FileUtil')
-  * def driverTarget = LambdaDriverTargetRegistry.get()
+  * def driverTarget = LambdaDriverTargetContext.getInstance()
   * if (!driverTarget) driverTarget = LambdaDriverTarget.fromKarateProperties(karate.properties)
   * configure driverTarget = driverTarget
   * configure afterScenario = runtime.createAfterScenario()

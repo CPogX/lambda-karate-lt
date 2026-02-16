@@ -3,7 +3,7 @@ package io.cpogx.lambdatest;
 import com.intuit.karate.Results;
 import com.intuit.karate.Runner;
 import io.cpogx.lambdatest.spring.LambdaDriverTarget;
-import io.cpogx.lambdatest.spring.LambdaDriverTargetRegistry;
+import io.cpogx.lambdatest.spring.LambdaDriverTargetContext;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -30,12 +30,12 @@ class LambdaSmokeTest {
             builder.tags(tagExpression);
         }
         props.forEach(builder::systemProperty);
-        LambdaDriverTargetRegistry.set(target);
+        LambdaDriverTargetContext.setInstance(target);
         try {
             Results results = builder.parallel(1);
             Assertions.assertEquals(0, results.getFailCount(), results.getErrorMessages());
         } finally {
-            LambdaDriverTargetRegistry.clear();
+            LambdaDriverTargetContext.clearInstance();
         }
     }
 
