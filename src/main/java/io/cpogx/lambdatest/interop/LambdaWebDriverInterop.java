@@ -5,10 +5,20 @@ import com.intuit.karate.driver.WebDriver;
 import com.intuit.karate.http.Response;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.remote.RemoteWebDriver;
+import org.openqa.selenium.remote.SessionId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.URLDecoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,6 +32,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public final class LambdaWebDriverInterop {
+
+    private static final String DEFAULT_LT_API_BASE_URL = "https://api.lambdatest.com/automation/api/v1";
+    private static final int SESSION_VIDEO_MAX_ATTEMPTS = 120;
+    private static final long SESSION_VIDEO_RETRY_DELAY_MS = 1000L;
 
     private LambdaWebDriverInterop() {
     }
@@ -154,6 +168,62 @@ public final class LambdaWebDriverInterop {
             throw new IllegalArgumentException("lambda status is required");
         }
         return execute(driverRef, "lambda-status", status.trim().toLowerCase(Locale.ROOT));
+    }
+
+    public static String lambdaStatusForError(Object errorMessage) {
+        return trimToNull(errorMessage) == null ? "passed" : "failed";
+    }
+
+    public static String sessionId(Object driverRef) {
+        return resolveSessionId(driverRef);
+    }
+
+    public static byte[] downloadSessionVideo(Object driverRef, String username, String accessKey) {
+        return downloadSessionVideo(resolveSessionId(driverRef), username, accessKey);
+    }
+
+    public static byte[] downloadSessionVideo(String sessionId, String username, String accessKey) {
+        String sid = trimToNull(sessionId);
+        String user = trimToNull(username);
+        String key = trimToNull(accessKey);
+        if (sid == null || user == null || key == null) {
+            return null;
+        }
+
+        return downloadSessionVideoInternal(sid, user, key);
+    }
+
+    private static byte[] downloadSessionVideoInternal(String sessionId, String username, String accessKey) {
+        URI sessionVideoApiUri = sessionVideoApiUri(sessionId);
+        URI sessionApiUri = sessionApiUri(sessionId);
+        if (sessionVideoApiUri == null || sessionApiUri == null) {
+            return null;
+        }
+        HttpClient client = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+
+        for (int i = 0; i < SESSION_VIDEO_MAX_ATTEMPTS; i++) {
+            Map<String, Object> sessionVideo = readJsonMap(client, sessionVideoApiUri, username, accessKey);
+            String videoUrl = extractVideoDownloadUrl(sessionVideo);
+            if (videoUrl == null) {
+                Map<String, Object> sessionDetails = readJsonMap(client, sessionApiUri, username, accessKey);
+                videoUrl = extractVideoDownloadUrl(sessionDetails);
+            }
+            if (videoUrl != null) {
+                URI videoUri = resolveUri(sessionApiUri, videoUrl);
+                if (videoUri != null) {
+                    byte[] bytes = readVideoBytes(client, videoUri, username, accessKey);
+                    if (bytes != null && bytes.length > 0) {
+                        return bytes;
+                    }
+                }
+            }
+            if (!sleepQuietly(SESSION_VIDEO_RETRY_DELAY_MS)) {
+                return null;
+            }
+        }
+        return null;
     }
 
     public static String uploadFile(Object driverRef, String localFilePath) {
@@ -332,6 +402,359 @@ public final class LambdaWebDriverInterop {
             throw new IllegalArgumentException(messageIfBlank);
         }
         return text;
+    }
+
+    private static URI sessionApiUri(String sessionId) {
+        String apiBase = trimToNull(System.getProperty("lt.api.base.url"));
+        if (apiBase == null) {
+            apiBase = trimToNull(System.getenv("LT_API_BASE_URL"));
+        }
+        if (apiBase == null) {
+            apiBase = DEFAULT_LT_API_BASE_URL;
+        }
+        String encoded = URLEncoder.encode(sessionId, StandardCharsets.UTF_8);
+        return resolveUri(null, apiBase + "/sessions/" + encoded);
+    }
+
+    private static URI sessionVideoApiUri(String sessionId) {
+        String apiBase = trimToNull(System.getProperty("lt.api.base.url"));
+        if (apiBase == null) {
+            apiBase = trimToNull(System.getenv("LT_API_BASE_URL"));
+        }
+        if (apiBase == null) {
+            apiBase = DEFAULT_LT_API_BASE_URL;
+        }
+        String encoded = URLEncoder.encode(sessionId, StandardCharsets.UTF_8);
+        return resolveUri(null, apiBase + "/sessions/" + encoded + "/video");
+    }
+
+    static String extractVideoUrl(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return null;
+        }
+        return extractVideoUrl(payload, null);
+    }
+
+    static String extractVideoDownloadUrl(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return null;
+        }
+        String direct = directVideoUrl(payload);
+        if (direct != null) {
+            return direct;
+        }
+        Map<String, Object> data = toMap(payload.get("data"));
+        if (data != null) {
+            return directVideoUrl(data);
+        }
+        return null;
+    }
+
+    private static String extractVideoUrl(Object value, String keyHint) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                Object child = entry.getValue();
+                if (key.toLowerCase(Locale.ROOT).contains("video")) {
+                    String candidate = trimToNull(child);
+                    if (candidate != null) {
+                        URI uri = resolveUri(null, candidate);
+                        if (uri != null && uri.isAbsolute()) {
+                            return candidate;
+                        }
+                    }
+                }
+            }
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = entry.getKey() == null ? keyHint : String.valueOf(entry.getKey());
+                String nested = extractVideoUrl(entry.getValue(), key);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+            return null;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                String nested = extractVideoUrl(item, keyHint);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+            return null;
+        }
+        String text = trimToNull(value);
+        if (text == null) {
+            return null;
+        }
+        URI uri = resolveUri(null, text);
+        if (uri == null || !uri.isAbsolute()) {
+            return null;
+        }
+        if (text.toLowerCase(Locale.ROOT).contains(".mp4")) {
+            return text;
+        }
+        if (keyHint != null && keyHint.toLowerCase(Locale.ROOT).contains("video")) {
+            return text;
+        }
+        return null;
+    }
+
+    private static Map<String, Object> readJsonMap(HttpClient client, URI uri, String username, String accessKey) {
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .header("Authorization", basicAuthValue(username, accessKey))
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+        HttpResponse<String> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return Collections.emptyMap();
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            return Collections.emptyMap();
+        }
+        String body = trimToNull(response.body());
+        if (body == null) {
+            return Collections.emptyMap();
+        }
+        Object parsed;
+        try {
+            parsed = Json.of(body).value();
+        } catch (Exception e) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> map = toMap(parsed);
+        return map == null ? Collections.emptyMap() : map;
+    }
+
+    private static byte[] readBytes(HttpClient client, URI uri, String username, String accessKey) {
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .header("Authorization", basicAuthValue(username, accessKey))
+                .GET()
+                .build();
+        HttpResponse<byte[]> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (Exception e) {
+            return null;
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            return null;
+        }
+        return response.body();
+    }
+
+    private static byte[] readVideoBytes(HttpClient client, URI uri, String username, String accessKey) {
+        URI requestUri = withoutUserInfo(uri);
+        String authorization = videoAuthValue(uri, username, accessKey);
+        HttpRequest request = HttpRequest.newBuilder(requestUri)
+                .header("Authorization", authorization)
+                .header("Accept", "video/mp4,application/octet-stream,*/*")
+                .GET()
+                .build();
+        HttpResponse<byte[]> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (Exception e) {
+            return null;
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            return null;
+        }
+        byte[] body = response.body();
+        if (body == null || body.length == 0) {
+            return null;
+        }
+        if (looksLikeMp4(body)) {
+            return body;
+        }
+        String contentType = response.headers().firstValue("Content-Type").orElse("");
+        if (contentType != null && contentType.toLowerCase(Locale.ROOT).contains("video/mp4")) {
+            return body;
+        }
+        return null;
+    }
+
+    private static String resolveSessionId(Object driverRef) {
+        if (driverRef == null) {
+            return null;
+        }
+        if (driverRef instanceof RemoteWebDriver seleniumDriver) {
+            SessionId sessionId = seleniumDriver.getSessionId();
+            if (sessionId != null && !sessionId.toString().isBlank()) {
+                return sessionId.toString();
+            }
+        }
+        String reflectedMethod = invokeNoArgMethod(driverRef, "getSessionId");
+        if (reflectedMethod != null) {
+            return reflectedMethod;
+        }
+        if (driverRef instanceof WebDriver webDriver) {
+            String fromOptions = findSessionIdInOptions(webDriver);
+            if (fromOptions != null) {
+                return fromOptions;
+            }
+            Object http = webDriver.getHttp();
+            String fromHttpField = findSessionIdField(http);
+            if (fromHttpField != null) {
+                return fromHttpField;
+            }
+        }
+        return findSessionIdField(driverRef);
+    }
+
+    private static String findSessionIdInOptions(WebDriver webDriver) {
+        Map<String, Object> options = castStringObjectMap(webDriver.getOptions().options);
+        if (options == null || options.isEmpty()) {
+            return null;
+        }
+        String exact = trimToNull(options.get("sessionId"));
+        if (exact != null) {
+            return exact;
+        }
+        for (Map.Entry<String, Object> entry : options.entrySet()) {
+            String key = entry.getKey();
+            if (key != null && key.toLowerCase(Locale.ROOT).contains("session")) {
+                String value = trimToNull(entry.getValue());
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String invokeNoArgMethod(Object target, String methodName) {
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            Object value = method.invoke(target);
+            return trimToNull(value);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String findSessionIdField(Object target) {
+        if (target == null) {
+            return null;
+        }
+        Class<?> type = target.getClass();
+        while (type != null && type != Object.class) {
+            for (Field field : type.getDeclaredFields()) {
+                String name = field.getName();
+                if (name == null || !name.toLowerCase(Locale.ROOT).contains("session")) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    String value = trimToNull(field.get(target));
+                    if (value != null) {
+                        return value;
+                    }
+                } catch (Exception ignored) {
+                    // continue scanning fields
+                }
+            }
+            type = type.getSuperclass();
+        }
+        return null;
+    }
+
+    private static URI resolveUri(URI base, String value) {
+        String text = trimToNull(value);
+        if (text == null) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(text);
+            if (uri.isAbsolute()) {
+                return uri;
+            }
+            if (base != null) {
+                return base.resolve(uri);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static boolean sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private static String basicAuthValue(String username, String accessKey) {
+        String userPass = username + ":" + accessKey;
+        return "Basic " + Base64.getEncoder().encodeToString(userPass.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static URI withoutUserInfo(URI uri) {
+        if (uri == null || uri.getUserInfo() == null) {
+            return uri;
+        }
+        try {
+            return new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(),
+                    uri.getPath(), uri.getQuery(), uri.getFragment());
+        } catch (Exception e) {
+            return uri;
+        }
+    }
+
+    private static String videoAuthValue(URI uri, String username, String accessKey) {
+        String userInfo = uri == null ? null : trimToNull(uri.getUserInfo());
+        if (userInfo != null) {
+            int delimiter = userInfo.indexOf(':');
+            if (delimiter > 0 && delimiter < userInfo.length() - 1) {
+                String user = URLDecoder.decode(userInfo.substring(0, delimiter), StandardCharsets.UTF_8);
+                String key = URLDecoder.decode(userInfo.substring(delimiter + 1), StandardCharsets.UTF_8);
+                if (!user.isBlank() && !key.isBlank()) {
+                    return basicAuthValue(user, key);
+                }
+            }
+        }
+        return basicAuthValue(username, accessKey);
+    }
+
+    private static String directVideoUrl(Map<String, Object> payload) {
+        String[] keys = {"url", "video_url", "download_url", "videoUrl"};
+        for (String key : keys) {
+            String candidate = trimToNull(payload.get(key));
+            if (candidate == null) {
+                continue;
+            }
+            URI uri = resolveUri(null, candidate);
+            if (uri == null || !uri.isAbsolute()) {
+                continue;
+            }
+            if (candidate.toLowerCase(Locale.ROOT).contains(".mp4")) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    static boolean looksLikeMp4(byte[] bytes) {
+        if (bytes == null || bytes.length < 12) {
+            return false;
+        }
+        int max = Math.min(bytes.length - 3, 32);
+        for (int i = 0; i < max; i++) {
+            if (bytes[i] == 'f' && bytes[i + 1] == 't' && bytes[i + 2] == 'y' && bytes[i + 3] == 'p') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String encodeFileAsBase64Zip(Path path) {

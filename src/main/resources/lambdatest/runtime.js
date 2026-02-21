@@ -152,11 +152,26 @@ function fn(config) {
 
   runtime.createAfterScenario = function () {
     return function () {
+      var Interop = Java.type('io.cpogx.lambdatest.interop.LambdaWebDriverInterop');
+      var status = 'passed';
+      var sessionId = null;
+      try {
+        status = Interop.lambdaStatusForError(karate.info ? karate.info.errorMessage : null);
+      } catch (statusError) {
+        karate.log('lambda status resolve failed', statusError + '');
+      }
+
       try {
         if (typeof driver !== 'undefined' && driver) {
-          var Interop = Java.type('io.cpogx.lambdatest.interop.LambdaWebDriverInterop');
-          var hasError = karate.info && karate.info.errorMessage && ('' + karate.info.errorMessage).length > 0;
-          Interop.lambdaStatus(driver, hasError ? 'failed' : 'passed');
+          sessionId = Interop.sessionId(driver);
+        }
+      } catch (sessionError) {
+        karate.log('lambda session id read failed', sessionError + '');
+      }
+
+      try {
+        if (typeof driver !== 'undefined' && driver) {
+          Interop.lambdaStatus(driver, status);
         }
       } catch (e1) {
         karate.log('lambda status update failed', e1 + '');
@@ -168,6 +183,23 @@ function fn(config) {
         }
       } catch (e2) {
         karate.log('driver quit failed', e2 + '');
+      }
+
+      try {
+        if (sessionId) {
+          var videoBytes = Interop.downloadSessionVideo(sessionId, runtime.username, runtime.accessKey);
+          if (videoBytes) {
+            var videoName = 'lambdatest-video-' + sessionId + '.mp4';
+            karate.write(videoBytes, 'lambdatest-videos/' + videoName);
+            karate.embed(videoBytes, 'video/mp4');
+          } else {
+            karate.log('lambda video unavailable for scenario', karate.info ? karate.info.scenarioName : '');
+          }
+        } else {
+          karate.log('lambda video unavailable because session id was not resolved');
+        }
+      } catch (videoError) {
+        karate.log('lambda video download failed', videoError + '');
       }
     };
   };

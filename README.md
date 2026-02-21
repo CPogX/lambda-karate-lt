@@ -10,6 +10,7 @@ Includes:
   - remote file upload via `/se/file`
   - Lambda uploaded-file path helper (`lambda:userFiles`)
   - CDP command execution via `POST /goog/cdp/execute`
+  - session finalization helpers (`passed/failed` + LambdaTest video download)
 - smoke feature with visible assertions for intercept + upload
 - plain JUnit runner and `@SpringBootTest` runner
 - Spring `LambdaDriverTarget` bean bound from `application.yml`
@@ -31,6 +32,8 @@ $env:LT_ACCESS_KEY='your-key'
 
 Report:
 - `build/karate-reports/lambdatest-smoke/karate-summary.html`
+- video artifacts are written via `karate.write(...)` under `lambdatest-videos/*.mp4` and embedded into Karate report entries
+- optional API override: `-Dlt.api.base.url=https://api.lambdatest.com/automation/api/v1`
 
 ## 2) Spring Boot mode (existing `application.yml`)
 
