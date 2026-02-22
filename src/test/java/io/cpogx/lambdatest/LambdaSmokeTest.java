@@ -51,6 +51,9 @@ class LambdaSmokeTest {
         props.put("lt.project", read("lt.project", "lambda-karate-lt"));
         props.put("lt.build", read("lt.build", "lambda-karate-lt"));
         props.put("lt.tags", read("lt.tags", "smoke,lambda"));
+        props.put("lt.network", read("lt.network", "true"));
+        props.put("lt.console", read("lt.console", "true"));
+        props.put("lt.visual", read("lt.visual", "true"));
 
         String tunnelName = read("lt.tunnel.name", "");
         if (!tunnelName.isBlank()) {

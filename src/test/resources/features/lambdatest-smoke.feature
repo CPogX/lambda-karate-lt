@@ -34,6 +34,36 @@ Scenario: Intercept pre-existing script request and verify built-in page behavio
   * match text('#result') == 'two'
   * screenshot()
 
+@smoke @intercept @intercept-response
+Scenario: Intercept SPA fetch call and validate mocked JSON response payload
+  * driver 'https://www.selenium.dev/selenium/web/web-form.html'
+  * def apiUrl = 'https://www.selenium.dev/selenium/web/spa-profile.json'
+  * def rule =
+  """
+  {
+    url: '#(apiUrl)',
+    method: 'GET',
+    response: {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: { name: 'mock-user', plan: 'gold' }
+    }
+  }
+  """
+  * def interceptAck = Interop.intercept(driver, rule)
+  * match interceptAck != null
+  * def interceptedResponse = script("(function(){ var xhr = new XMLHttpRequest(); xhr.open('GET', '" + apiUrl + "', false); xhr.send(null); var out = { status: xhr.status, contentType: xhr.getResponseHeader('Content-Type'), responseText: xhr.responseText }; try { var payload = JSON.parse(xhr.responseText); out.payload = payload.name + ':' + payload.plan; } catch (e) { out.payload = 'ERR:' + e.message; out.parseError = '' + e; } return out; })()")
+  * print 'interceptedResponse:', interceptedResponse
+  * match interceptedResponse.status == 200
+  * match interceptedResponse.contentType contains 'application/json'
+  * match interceptedResponse.responseText contains '"name":"mock-user"'
+  * match interceptedResponse.responseText contains '"plan":"gold"'
+  * match interceptedResponse.payload == 'mock-user:gold'
+  * screenshot()
+
 @smoke @upload
 Scenario: Upload local file on remote LambdaTest session
   * def content = 'lambda smoke upload content'

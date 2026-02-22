@@ -78,6 +78,9 @@ function fn(config) {
     username: cfg.username || prop('lt.username', ''),
     accessKey: cfg.accessKey || prop('lt.accessKey', ''),
     tunnelName: cfg.tunnelName || prop('lt.tunnel.name', ''),
+    network: cfg.network !== undefined ? boolValue(cfg.network, true) : boolValue(prop('lt.network', ''), true),
+    console: cfg.console !== undefined ? boolValue(cfg.console, true) : boolValue(prop('lt.console', ''), true),
+    visual: cfg.visual !== undefined ? boolValue(cfg.visual, true) : boolValue(prop('lt.visual', ''), true),
     tags: csv(prop('lt.tags', '')),
     userFiles: csv(prop('lt.user.files', ''))
   };
@@ -125,6 +128,15 @@ function fn(config) {
     }
     if (runtime.userFiles.length && !ltOptions['lambda:userFiles']) {
       ltOptions['lambda:userFiles'] = runtime.userFiles;
+    }
+    if (ltOptions.network === undefined) {
+      ltOptions.network = runtime.network;
+    }
+    if (ltOptions.console === undefined) {
+      ltOptions.console = runtime.console;
+    }
+    if (ltOptions.visual === undefined) {
+      ltOptions.visual = runtime.visual;
     }
 
     alwaysMatch['LT:Options'] = ltOptions;

@@ -12,6 +12,7 @@ Includes:
   - CDP command execution via `POST /goog/cdp/execute`
   - session finalization helpers (`passed/failed` + LambdaTest video download)
 - smoke feature with visible assertions for intercept + upload
+- intercept smoke that asserts raw intercepted response body contains mocked values
 - plain JUnit runner and `@SpringBootTest` runner
 - Spring `LambdaDriverTarget` bean bound from `application.yml`
 
@@ -90,6 +91,12 @@ Feature wiring:
 
 Tag expressions are supported (`@smoke and not @intercept`).
 
+Intercept-response with extended debugging:
+
+```powershell
+./gradlew test --tests "io.cpogx.lambdatest.LambdaSmokeTest" -Dkarate.tags="@intercept-response" -Dlt.network=true -Dlt.console=true -Dlt.visual=true
+```
+
 ## 4) Intercept rule format
 
 Use from Karate:
@@ -114,6 +121,22 @@ Response override:
 }
 """
 * Interop.intercept(driver, rule)
+```
+
+Note:
+- If `response.body` is an object / map, it is passed as structured JSON (not double-encoded as a quoted string).
+- If `response.body` is a string, it is sent unchanged.
+
+Proof pattern used in smoke (`@intercept-response`):
+
+```karate
+* def interceptedResponse = script("(function(){ var xhr = new XMLHttpRequest(); xhr.open('GET', '" + apiUrl + "', false); xhr.send(null); var out = { status: xhr.status, contentType: xhr.getResponseHeader('Content-Type'), responseText: xhr.responseText }; try { var payload = JSON.parse(xhr.responseText); out.payload = payload.name + ':' + payload.plan; } catch (e) { out.payload = 'ERR:' + e.message; out.parseError = '' + e; } return out; })()")
+* print 'interceptedResponse:', interceptedResponse
+* match interceptedResponse.status == 200
+* match interceptedResponse.contentType contains 'application/json'
+* match interceptedResponse.responseText contains '"name":"mock-user"'
+* match interceptedResponse.responseText contains '"plan":"gold"'
+* match interceptedResponse.payload == 'mock-user:gold'
 ```
 
 Redirect:

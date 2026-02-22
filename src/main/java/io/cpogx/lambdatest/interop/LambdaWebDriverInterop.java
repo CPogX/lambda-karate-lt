@@ -151,7 +151,7 @@ public final class LambdaWebDriverInterop {
             body = response.get("responseBody");
         }
         if (body != null) {
-            normalizedResponse.put("body", toJsonString(body));
+            normalizedResponse.put("body", normalizeInterceptResponseBody(body));
         }
 
         Map<String, Object> args = new LinkedHashMap<>();
@@ -167,7 +167,8 @@ public final class LambdaWebDriverInterop {
         if (status == null || status.isBlank()) {
             throw new IllegalArgumentException("lambda status is required");
         }
-        return execute(driverRef, "lambda-status", status.trim().toLowerCase(Locale.ROOT));
+        String normalized = status.trim().toLowerCase(Locale.ROOT);
+        return execute(driverRef, "lambda-status=" + normalized);
     }
 
     public static String lambdaStatusForError(Object errorMessage) {
@@ -353,14 +354,20 @@ public final class LambdaWebDriverInterop {
         }
     }
 
-    private static String toJsonString(Object value) {
+    private static Object normalizeInterceptResponseBody(Object value) {
         if (value == null) {
             return null;
         }
-        if (value instanceof String s) {
-            return s;
+        if (value instanceof CharSequence s) {
+            return s.toString();
         }
-        return Json.of(value).toString();
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        if (value instanceof Map<?, ?> || value instanceof Iterable<?>) {
+            return value;
+        }
+        return Json.of(value).value();
     }
 
     @SuppressWarnings("unchecked")
